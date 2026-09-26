@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Progress Tracker</title>
+<style>
+  :root{
+    --bg:#f5f7fb; --card:#ffffff; --text:#172033; --muted:#667085;
+    --line:#d9dee8; --accent:#4f46e5; --done:#16a34a; --pending:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:Arial,Helvetica,sans-serif; background:var(--bg);
+    color:var(--text); padding:18px;
+  }
+  .wrap{max-width:1100px;margin:auto}
+  h1{margin:0 0 6px;font-size:28px}
+  .sub{color:var(--muted);margin:0 0 18px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    box-shadow:0 5px 18px rgba(20,30,50,.06); overflow:hidden;
+  }
+  .top{
+    padding:18px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;
+    border-bottom:1px solid var(--line);
+  }
+  .progressBox{min-width:220px;flex:1}
+  .progressText{font-weight:700;margin-bottom:7px}
+  .bar{height:11px;background:#e9edf5;border-radius:20px;overflow:hidden}
+  .fill{height:100%;width:0;background:var(--done);transition:.25s}
+  button{
+    border:0;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:700;
+  }
+  .primary{background:var(--accent);color:white}
+  .secondary{background:#eef1f7;color:#25304a}
+  .danger{background:#fee2e2;color:#991b1b}
+  .tableWrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:760px}
+  th,td{border-bottom:1px solid var(--line);padding:13px 12px;text-align:center}
+  th{background:#f8f9fc;font-size:14px}
+  th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:inherit;z-index:1}
+  .subject{font-weight:800}
+  .inputCell{display:flex;align-items:center;justify-content:center;gap:7px}
+  input[type="text"], input[type="number"], select{
+    width:95px;padding:8px;border:1px solid var(--line);border-radius:8px;
+    background:white;font-size:14px;
+  }
+  input[type="checkbox"]{width:20px;height:20px;accent-color:var(--done);cursor:pointer}
+  .status{font-size:12px;font-weight:700;color:var(--muted)}
+  .status.done{color:var(--done)}
+  .status.partial{color:var(--pending)}
+  .footer{padding:14px 18px;color:var(--muted);font-size:13px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+  @media(max-width:600px){body{padding:10px}h1{font-size:23px}.top{padding:13px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚙️ Mechatronics Study & Assignment Tracker</h1>
+  <p class="sub">Mark each subject as <b>Complete</b>, <b>Incomplete</b>, or enter your progress.</p>
+
+  <div class="card">
+    <div class="top">
+      <div class="progressBox">
+        <div class="progressText" id="progressText">Overall progress: 0%</div>
+        <div class="bar"><div class="fill" id="fill"></div></div>
+      </div>
+      <button class="primary" onclick="markAllComplete()">✅ Mark all complete</button>
+      <button class="secondary" onclick="resetAll()">↻ Reset</button>
+    </div>
+
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>Assignment</th>
+            <th>Manual</th>
+            <th>Sheets</th>
+            <th>Study</th>
+          </tr>
+        </thead>
+        <tbody id="tracker"></tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <div style="font-size:12px; margin-bottom:10px; color:#98a2b3;">Made by Sanskar Kamble</div>
+      Your progress is saved automatically in this browser.
+      <div class="legend">
+        <span><i class="dot" style="background:#16a34a"></i>Complete</span>
+        <span><i class="dot" style="background:#f59e0b"></i>Incomplete / partial</span>
+        <span><i class="dot" style="background:#98a2b3"></i>Not started</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const subjects = ["TIME","ADE","MEM","EEE","PDR","Python"];
+const original = {
+  "TIME":   {assignment:"2/6", manual:"2/13", sheets:"—", study:""},
+  "ADE":    {assignment:"1/2", manual:"✓", sheets:"—", study:""},
+  "MEM":    {assignment:"5/5", manual:"0/", sheets:"—", study:""},
+  "EEE":    {assignment:"3/13", manual:"7/13", sheets:"—", study:""},
+  "PDR":    {assignment:"0/5", manual:"—", sheets:"2/5", study:""},
+  "Python": {assignment:"—", manual:"✓", sheets:"—", study:"—"}
+};
+
+function loadData(){
+  try { return JSON.parse(localStorage.getItem("studyTrackerData")) || original; }
+  catch(e){ return original; }
+}
+let data = loadData();
+
+function parseProgress(value){
+  if(!value) return null;
+  const m = String(value).match(/(\d+)\s*\/\s*(\d+)/);
+  if(m){
+    const a=Number(m[1]), b=Number(m[2]);
+    if(b>0) return Math.max(0,Math.min(100,a/b*100));
+  }
+  if(value.includes("✓")) return 100;
+  return null;
+}
+
+function cellHTML(subject, field){
+  const value = data[subject][field] ?? "";
+  if(value === "—") return `<span class="status">—</span>`;
+  const p = parseProgress(value);
+  const done = p === 100;
+  return `
+    <div class="inputCell">
+      <input type="text" value="${String(value).replaceAll('"','&quot;')}"
+        oninput="updateValue('${subject}','${field}',this.value)">
+      <input type="checkbox" ${done ? "checked":""}
+        onchange="toggleComplete('${subject}','${field}',this.checked)"
+        title="Mark complete">
+    </div>
+    <div class="status ${p===100?'done':p!==null?'partial':''}">
+      ${p===100 ? "Complete" : p!==null ? Math.round(p)+"% done" : "Not started"}
+    </div>`;
+}
+
+function render(){
+  document.getElementById("tracker").innerHTML = subjects.map(s => `
+    <tr>
+      <td class="subject">${s}</td>
+      <td>${cellHTML(s,"assignment")}</td>
+      <td>${cellHTML(s,"manual")}</td>
+      <td>${cellHTML(s,"sheets")}</td>
+      <td>${cellHTML(s,"study")}</td>
+    </tr>`).join("");
+  updateOverall();
+}
+
+function updateValue(subject, field, value){
+  data[subject][field]=value;
+  save();
+  updateOverall();
+}
+function toggleComplete(subject, field, checked){
+  data[subject][field]=checked ? "✓" : "";
+  save();
+  render();
+}
+function save(){ localStorage.setItem("studyTrackerData", JSON.stringify(data)); }
+
+function updateOverall(){
+  let total=0, count=0;
+  for(const s of subjects){
+    for(const f of ["assignment","manual","sheets","study"]){
+      const v=data[s][f];
+      if(v==="—") continue;
+      const p=parseProgress(v);
+      if(p!==null){ total+=p; count++; }
+    }
+  }
+  const pct=count ? Math.round(total/count) : 0;
+  document.getElementById("progressText").textContent=`Overall progress: ${pct}%`;
+  document.getElementById("fill").style.width=pct+"%";
+}
+
+function markAllComplete(){
+  for(const s of subjects)
+    for(const f of ["assignment","manual","sheets","study"])
+      if(data[s][f] !== "—") data[s][f]="✓";
+  save(); render();
+}
+function resetAll(){
+  if(confirm("Reset the tracker to the values from your photo?")){
+    data=JSON.parse(JSON.stringify(original)); save(); render();
+  }
+}
+render();
+</script>
+</body>
+</html>
